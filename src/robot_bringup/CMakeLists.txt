@@ -20,7 +20,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Install scripts (joint_state_relay, ik_interactive_marker, publish_robot_description, ik_keyboard_controller, teleop_data_logger)
+# Install scripts (joint_state_relay, ik_interactive_marker, publish_robot_description, ik_keyboard_controller, teleop_data_logger, record_flicker)
 install(PROGRAMS
   scripts/joint_state_relay.py
   scripts/ik_interactive_marker_node.py
@@ -28,6 +28,7 @@ install(PROGRAMS
   scripts/ik_keyboard_controller.py
   scripts/teleop_data_logger.py
   scripts/slider_command_relay.py
+  scripts/record_flicker.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
