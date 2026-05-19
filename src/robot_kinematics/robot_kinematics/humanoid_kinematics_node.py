@@ -555,6 +555,23 @@ class ArmKinematicsNode(Node):
                 full = unity_pose_to_ros_se3(unity_pose)
                 return pin.SE3(np.eye(3), full.translation)
 
+            # IK target = controller POSITION RELATIVE TO HEAD, then treated
+            # as relative to robot's base_link (approximation that the robot's
+            # chest/shoulder sits at base_link origin). The previous chain
+            #     T_base_left = T_world_head * (T_head_world * T_world_left)
+            # algebraically reduces to T_world_left — i.e. the operator's raw
+            # world position in their playspace. That put targets at the
+            # operator's Y-up world height (~1.4–1.7m) which is far outside
+            # the robot's workspace (max_z=0.45). IK saturated, flipped between
+            # local optima, and the arm flailed. Using T_head_left as the
+            # target keeps things in a reach-sized box around base_link.
+            #
+            # iterations=self.realtime_iterations (= 1 from teleop_config.yaml)
+            # instead of hard-coded 50: at 50Hz incoming VR commands, each
+            # 50-iter solve cost ~25-40ms on the LattePanda; calling
+            # teleop_callback at 50Hz with two arms = 100 iters / 50Hz = 100%
+            # CPU on a single thread and the message queue backed up, which is
+            # why head appeared to "snap" instead of stream smoothly.
             if self.humanoid_ik is not None:
                 unity_left_dict = {
                     'position': {'x': msg.left_controller_pose.position.x, 'y': msg.left_controller_pose.position.y, 'z': msg.left_controller_pose.position.z},
@@ -562,10 +579,9 @@ class ArmKinematicsNode(Node):
                 }
                 T_world_left = _position_only(unity_left_dict)
                 T_head_left = T_head_world * T_world_left
-                T_base_head = T_world_head
-                T_base_left = T_base_head * T_head_left
-                target_poses = {'left': T_base_left}
-                joint_solutions = self.humanoid_ik.compute_ik(target_poses, iterations=50)
+                target_poses = {'left': T_head_left}
+                joint_solutions = self.humanoid_ik.compute_ik(
+                    target_poses, iterations=self.realtime_iterations)
                 left_joints = joint_solutions['left']
                 self.publish_joint_command(left_joints, 'left')
 
@@ -576,10 +592,9 @@ class ArmKinematicsNode(Node):
                 }
                 T_world_right = _position_only(unity_right_dict)
                 T_head_right = T_head_world * T_world_right
-                T_base_head = T_world_head
-                T_base_right = T_base_head * T_head_right
-                target_poses = {'right': T_base_right}
-                joint_solutions = self.humanoid_ik.compute_ik(target_poses, iterations=50)
+                target_poses = {'right': T_head_right}
+                joint_solutions = self.humanoid_ik.compute_ik(
+                    target_poses, iterations=self.realtime_iterations)
                 right_joints = joint_solutions['right']
                 self.publish_joint_command(right_joints, 'right')
 
