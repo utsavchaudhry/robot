@@ -572,6 +572,17 @@ class ArmKinematicsNode(Node):
             # teleop_callback at 50Hz with two arms = 100 iters / 50Hz = 100%
             # CPU on a single thread and the message queue backed up, which is
             # why head appeared to "snap" instead of stream smoothly.
+            # IK iterations per VR frame. realtime_iterations=1 from
+            # teleop_config.yaml is meant for the ik_timer path that runs
+            # continuously at 50Hz — there, one step per tick adds up. From
+            # teleop_callback the IK only runs when a VR frame arrives, so 1
+            # iter/frame means the end-effector creeps toward target while
+            # the user's hand has already moved on. 10 iter is a compromise:
+            # fast enough that the arm tracks within ~3 frames, slow enough
+            # (~10-15ms per call on LattePanda) not to back up the head
+            # publish that we moved to the top of this callback.
+            VR_IK_ITERATIONS = 10
+
             if self.humanoid_ik is not None:
                 unity_left_dict = {
                     'position': {'x': msg.left_controller_pose.position.x, 'y': msg.left_controller_pose.position.y, 'z': msg.left_controller_pose.position.z},
@@ -581,7 +592,7 @@ class ArmKinematicsNode(Node):
                 T_head_left = T_head_world * T_world_left
                 target_poses = {'left': T_head_left}
                 joint_solutions = self.humanoid_ik.compute_ik(
-                    target_poses, iterations=self.realtime_iterations)
+                    target_poses, iterations=VR_IK_ITERATIONS)
                 left_joints = joint_solutions['left']
                 self.publish_joint_command(left_joints, 'left')
 
@@ -594,7 +605,7 @@ class ArmKinematicsNode(Node):
                 T_head_right = T_head_world * T_world_right
                 target_poses = {'right': T_head_right}
                 joint_solutions = self.humanoid_ik.compute_ik(
-                    target_poses, iterations=self.realtime_iterations)
+                    target_poses, iterations=VR_IK_ITERATIONS)
                 right_joints = joint_solutions['right']
                 self.publish_joint_command(right_joints, 'right')
 
