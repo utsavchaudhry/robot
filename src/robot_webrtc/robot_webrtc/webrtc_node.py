@@ -1297,14 +1297,24 @@ class WebRTCNode(Node):
             # Restart service after a delay for a clean GStreamer slate.
             # 10s gives takeover time to complete; if no new operator joins,
             # restart cleans up any leaked GStreamer state.
-            self.get_logger().info('Operator disconnected — will restart service in 10s unless new operator joins')
-            def _maybe_restart():
-                if self.active_operator is None and len(self.peers) == 0:
-                    self.get_logger().info('No new operator joined — restarting service')
-                    subprocess.Popen(['sudo', 'systemctl', 'restart', 'robot-teleop'])
-                else:
-                    self.get_logger().info('New operator joined — skipping restart')
-            threading.Timer(10.0, _maybe_restart).start()
+            # Auto-restart is for production where systemd manages the
+            # process — when launched interactively (test_local_full or a
+            # plain `ros2 launch`), `systemctl restart robot-teleop` spawns a
+            # duplicate stack instead of cycling the current one (it shells
+            # out via sudo to a different unit's process tree). Gate it on
+            # INVOCATION_ID, which systemd sets for every service it spawns.
+            running_under_systemd = bool(os.environ.get('INVOCATION_ID'))
+            if running_under_systemd:
+                self.get_logger().info('Operator disconnected — will restart service in 10s unless new operator joins')
+                def _maybe_restart():
+                    if self.active_operator is None and len(self.peers) == 0:
+                        self.get_logger().info('No new operator joined — restarting service')
+                        subprocess.Popen(['sudo', 'systemctl', 'restart', 'robot-teleop'])
+                    else:
+                        self.get_logger().info('New operator joined — skipping restart')
+                threading.Timer(10.0, _maybe_restart).start()
+            else:
+                self.get_logger().info('Operator disconnected — auto-restart skipped (not running under systemd)')
         else:
             self.get_logger().info(f'Removed peer {peer_id} ({len(remaining_connections)} connections remaining for operator {base_operator_id})')
 
