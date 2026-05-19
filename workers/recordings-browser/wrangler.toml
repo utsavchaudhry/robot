@@ -1,0 +1,11 @@
+name = "recordings-browser"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+routes = [
+  { pattern = "recordings.utsavchaudhary.us/*", zone_name = "utsavchaudhary.us" }
+]
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "teleop-reordings"

@@ -1,0 +1,483 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HOPEJr Humanoid Robot - Complete Model
+  Head (2-DOF) + Torso + Left Arm (7-DOF) + Right Arm (7-DOF)
+  Total: 16 DOF
+  Single file - all content inlined (no external includes)
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="hopejr_humanoid">
+
+  <!-- Dummy root: no inertial (KDL does not support root with inertia) -->
+  <link name="world"/>
+
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ BASE / TORSO ============ -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0.2" rpy="0 0 0"/>
+      <mass value="2.0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.005"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.2" rpy="0 0 0"/>
+      <geometry><box size="0.25 0.15 0.4"/></geometry>
+      <material name="grey"><color rgba="0.6 0.6 0.6 1"/></material>
+    </visual>
+  </link>
+
+  <!-- ============ HEAD (2-DOF) ============ -->
+  <link name="head_yaw_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.3"/>
+      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.0003"/>
+    </inertial>
+  </link>
+
+  <joint name="head_yaw" type="revolute">
+    <parent link="base_link"/>
+    <child link="head_yaw_link"/>
+    <origin xyz="0 0 0.45" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.57" upper="1.57" effort="30" velocity="3.14"/>
+  </joint>
+
+  <link name="head_pitch_link">
+    <inertial>
+      <origin xyz="0.05 0 0" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.0008"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.08 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.16 0.15 0.15"/></geometry>
+      <material name="white"><color rgba="0.9 0.9 0.9 1"/></material>
+    </visual>
+  </link>
+
+  <joint name="head_pitch" type="revolute">
+    <parent link="head_yaw_link"/>
+    <child link="head_pitch_link"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.785" upper="0.785" effort="30" velocity="3.14"/>
+  </joint>
+
+  <!-- ============ LEFT ARM (7-DOF) ============ -->
+  <joint name="left_shoulder_mount" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_shoulder_base"/>
+    <origin xyz="0 0.16 0.35" rpy="0 3.141592653589793 0"/>
+  </joint>
+
+  <link name="left_shoulder_base">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="1.260139"/>
+      <inertia ixx="0.003444" ixy="0.000000060725" ixz="0.000000223974" iyy="0.003173" iyz="0.0003306" izz="0.002316"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/base_link.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/base_link.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <link name="left_shoulder_yaw_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.252213"/>
+      <inertia ixx="0.0001227" ixy="0.000000629536" ixz="-0.000000333468" iyy="0.0001678" iyz="-0.000000674054" izz="0.0001553"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/shoulder_yaw.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/shoulder_yaw.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="left_shoulder_pitch" type="revolute">
+    <parent link="left_shoulder_base"/>
+    <child link="left_shoulder_yaw_link"/>
+    <origin rpy="0 3.141592653589793 0" xyz="0 0.07106 0.04453"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-3.14" upper="3.14" velocity="1.0"/>
+  </joint>
+
+  <link name="left_shoulder_roll_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.422614"/>
+      <inertia ixx="0.0006959" ixy="0.000006134701" ixz="-0.000083430347" iyy="0.0007655" iyz="0.000025066263" izz="0.0002446"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/shoulder_roll.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/shoulder_roll.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="left_shoulder_yaw" type="revolute">
+    <parent link="left_shoulder_yaw_link"/>
+    <child link="left_shoulder_roll_link"/>
+    <origin rpy="-1.5707963267948966 0 0" xyz="0 0.05585 0"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="10" lower="-1.71" upper="1.681" velocity="1.0"/>
+  </joint>
+
+  <link name="left_upper_elbow_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.243803"/>
+      <inertia ixx="0.0003227" ixy="-0.000000062111" ixz="-0.0001214" iyy="0.0003959" iyz="-0.000000048168" izz="0.0001746"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/upper_elbow.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/upper_elbow.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="left_shoulder_roll" type="revolute">
+    <parent link="left_shoulder_roll_link"/>
+    <child link="left_upper_elbow_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0.0884"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-1.172" upper="1.172" velocity="1.0"/>
+  </joint>
+
+  <link name="left_lower_elbow_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.1882"/>
+      <inertia ixx="0.0001196" ixy="0.000002288885" ixz="0.000001137302" iyy="0.000096307138" iyz="0.000003223544" izz="0.0001047"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/lower_elbow.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/lower_elbow.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="left_elbow_flex" type="revolute">
+    <parent link="left_upper_elbow_link"/>
+    <child link="left_lower_elbow_link"/>
+    <origin rpy="0 3.141592653589793 0" xyz="0.03765 0 0.11311"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-2.98" upper="-0.61" velocity="1.0"/>
+  </joint>
+
+  <link name="left_forearm_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.208355"/>
+      <inertia ixx="0.0002051" ixy="0.000000044894" ixz="-0.000004226706" iyy="0.0002222" iyz="-0.000002431512" izz="0.0001122"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/forearm.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/forearm.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="left_wrist_roll" type="revolute">
+    <parent link="left_lower_elbow_link"/>
+    <child link="left_forearm_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0.06325"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-0.7853981633974483" upper="3.665191429188092" velocity="1.0"/>
+  </joint>
+
+  <link name="left_hand_base_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.03323"/>
+      <inertia ixx="0.000018824494" ixy="-0.000000571474" ixz="-0.000000041098" iyy="0.00001505929" iyz="0.000000023636" izz="0.000013661405"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/hand/visual/base_link.dae" scale="0.1 0.1 0.1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/hand/collision/base_link.stl" scale="0.1 0.1 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="left_wrist_yaw" type="revolute">
+    <parent link="left_forearm_link"/>
+    <child link="left_hand_base_link"/>
+    <origin rpy="0 -1.5707963267948966 0" xyz="0 -0.00021 0.0917"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-0.17453292519943295" upper="0.17453292519943295" velocity="1.0"/>
+  </joint>
+
+  <link name="left_hand_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.252893"/>
+      <inertia ixx="0.0002839" ixy="0.000003336317" ixz="0.000004077546" iyy="0.0001891" iyz="0.000000331897" izz="0.0001469"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/hand/visual/hand.dae" scale="0.1 0.1 0.1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/hand/collision/hand.stl" scale="0.1 0.1 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="left_hand_wrist_pitch" type="revolute">
+    <parent link="left_hand_base_link"/>
+    <child link="left_hand_link"/>
+    <origin rpy="0 1.5707963267948966 0" xyz="0.029887 -0.007923 0"/>
+    <axis xyz="0 1 0"/>
+    <!-- Constrained to ±15° from default (straight) — mechanical limitation -->
+    <limit effort="10" lower="-0.2618" upper="0.2618" velocity="1.0"/>
+  </joint>
+
+  <link name="left_end_effector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="left_ee_fixed" type="fixed">
+    <parent link="left_hand_link"/>
+    <child link="left_end_effector"/>
+    <origin xyz="0 0.07 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ RIGHT ARM (7-DOF) ============ -->
+  <joint name="right_shoulder_mount" type="fixed">
+    <parent link="base_link"/>
+    <child link="right_shoulder_base"/>
+    <origin xyz="0 -0.16 0.35" rpy="0 3.141592653589793 3.141592653589793"/>
+  </joint>
+
+  <link name="right_shoulder_base">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="1.260139"/>
+      <inertia ixx="0.003444" ixy="0.000000060725" ixz="0.000000223974" iyy="0.003173" iyz="0.0003306" izz="0.002316"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/base_link.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/base_link.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <link name="right_shoulder_yaw_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.252213"/>
+      <inertia ixx="0.0001227" ixy="0.000000629536" ixz="-0.000000333468" iyy="0.0001678" iyz="-0.000000674054" izz="0.0001553"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/shoulder_yaw.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/shoulder_yaw.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="right_shoulder_pitch" type="revolute">
+    <parent link="right_shoulder_base"/>
+    <child link="right_shoulder_yaw_link"/>
+    <origin rpy="0 0 0" xyz="0 0.07106 0.04453"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" lower="-3.14" upper="3.14" velocity="1.0"/>
+  </joint>
+
+  <link name="right_shoulder_roll_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.422614"/>
+      <inertia ixx="0.0006959" ixy="0.000006134701" ixz="-0.000083430347" iyy="0.0007655" iyz="0.000025066263" izz="0.0002446"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/shoulder_roll.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/shoulder_roll.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="right_shoulder_yaw" type="revolute">
+    <parent link="right_shoulder_yaw_link"/>
+    <child link="right_shoulder_roll_link"/>
+    <origin rpy="-1.5707963267948966 0 0" xyz="0 0.05585 0"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="10" lower="-1.71" upper="1.681" velocity="1.0"/>
+  </joint>
+
+  <link name="right_upper_elbow_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.243803"/>
+      <inertia ixx="0.0003227" ixy="-0.000000062111" ixz="-0.0001214" iyy="0.0003959" iyz="-0.000000048168" izz="0.0001746"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/upper_elbow.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/upper_elbow.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="right_shoulder_roll" type="revolute">
+    <parent link="right_shoulder_roll_link"/>
+    <child link="right_upper_elbow_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0.0884"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-1.172" upper="1.172" velocity="1.0"/>
+  </joint>
+
+  <link name="right_lower_elbow_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.1882"/>
+      <inertia ixx="0.0001196" ixy="0.000002288885" ixz="0.000001137302" iyy="0.000096307138" iyz="0.000003223544" izz="0.0001047"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/lower_elbow.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/lower_elbow.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="right_elbow_flex" type="revolute">
+    <parent link="right_upper_elbow_link"/>
+    <child link="right_lower_elbow_link"/>
+    <origin rpy="0 0 0" xyz="0.03765 0 0.11311"/>
+    <axis xyz="0 -1 0"/>
+    <limit effort="10" lower="-2.53" upper="-0.16" velocity="1.0"/>
+  </joint>
+
+  <link name="right_forearm_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.208355"/>
+      <inertia ixx="0.0002051" ixy="0.000000044894" ixz="-0.000004226706" iyy="0.0002222" iyz="-0.000002431512" izz="0.0001122"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/visual/forearm.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/arm/collision/forearm.stl" scale="1 1 1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="right_wrist_roll" type="revolute">
+    <parent link="right_lower_elbow_link"/>
+    <child link="right_forearm_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0.06325"/>
+    <axis xyz="0 0 -1"/>
+    <limit effort="10" lower="-0.7853981633974483" upper="3.665191429188092" velocity="1.0"/>
+  </joint>
+
+  <link name="right_hand_base_link">
+    <inertial>
+      <origin xyz="-0.02 0 0.028" rpy="0 0 0"/>
+      <mass value="0.03323"/>
+      <inertia ixx="0.000018824494" ixy="-0.000000571474" ixz="-0.000000041098" iyy="0.00001505929" iyz="0.000000023636" izz="0.000013661405"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/hand/visual/base_link.dae" scale="0.1 0.1 0.1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/hand/collision/base_link.stl" scale="0.1 0.1 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="right_wrist_yaw" type="revolute">
+    <parent link="right_forearm_link"/>
+    <child link="right_hand_base_link"/>
+    <origin rpy="0 -1.5707963267948966 0" xyz="0 0.00021 0.0917"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="10" lower="-0.17453292519943295" upper="0.17453292519943295" velocity="1.0"/>
+  </joint>
+
+  <link name="right_hand_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.252893"/>
+      <inertia ixx="0.0002839" ixy="0.000003336317" ixz="0.000004077546" iyy="0.0001891" iyz="0.000000331897" izz="0.0001469"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/hand/visual/hand.dae" scale="0.1 0.1 0.1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><mesh filename="package://robot_description/meshes/hand/collision/hand.stl" scale="0.1 0.1 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="right_hand_wrist_pitch" type="revolute">
+    <parent link="right_hand_base_link"/>
+    <child link="right_hand_link"/>
+    <origin rpy="0 1.5707963267948966 0" xyz="0.029887 0.007923 0"/>
+    <axis xyz="0 1 0"/>
+    <!-- Constrained to ±15° from default (straight) — mechanical limitation -->
+    <limit effort="10" lower="-0.2618" upper="0.2618" velocity="1.0"/>
+  </joint>
+
+  <link name="right_end_effector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="right_ee_fixed" type="fixed">
+    <parent link="right_hand_link"/>
+    <child link="right_end_effector"/>
+    <origin xyz="0 -0.07 0" rpy="0 0 0"/>
+  </joint>
+
+</robot>

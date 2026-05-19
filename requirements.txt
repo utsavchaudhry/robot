@@ -1,0 +1,36 @@
+# Python dependencies for VRobot ROS2 (HOPEJr teleop)
+# Install: pip3 install -r requirements.txt
+# Then: pip3 install --no-deps pin-pink  (or use install_dependencies.sh)
+#
+# NumPy <2: python3-opencv and ros-humble-pinocchio from apt are built for NumPy 1.x.
+# pin-pink is installed with --no-deps; Pinocchio comes from ros-humble-pinocchio (apt),
+# so we never pull the pip "pin" stack (which requires numpy>=2.2).
+
+numpy>=1.21.0,<2
+# opencv: use system python3-opencv (apt) — ARM-optimized with NEON/libjpeg-turbo.
+# Do NOT install opencv-python from pip; it shadows the system package with a
+# slower aarch64 wheel that lacks hardware optimizations.
+
+# QP solver for Pink solve_ik (extras like open_source_solvers were removed in qpsolvers 4.8+)
+qpsolvers>=4.0.0
+quadprog
+
+# Pink deps (pin-pink is installed with --no-deps; Pinocchio from apt)
+loop-rate-limiters>=0.1.0
+
+# Pinocchio: use apt: sudo apt install ros-humble-pinocchio (required for pin-pink at runtime)
+
+# Signaling / WebRTC
+websockets>=10.0
+
+# Keyboard controller for IK testing
+keyboard>=0.13.5
+
+# YAML configuration file parsing
+PyYAML>=6.0
+
+# Serial communication with ESP32 motor controllers
+pyserial>=3.5
+
+# Cloudflare R2 uploads (S3-compatible API) for session recordings
+boto3>=1.26.0

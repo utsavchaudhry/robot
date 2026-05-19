@@ -1,0 +1,213 @@
+# Servo motor configuration — gripper robot (both arms have grippers, no SCS fingers)
+#
+# esp_min / esp_max  — raw servo position range (from Robot Joints diagram)
+# angle_min / angle_max — joint angle limits in radians (from URDF / IK ranges PDF)
+# Midpoint of esp range = calibrated zero angle.
+#
+# flip: if true, reverses the angle→ESP mapping direction
+#        (angle_min → esp_max, angle_max → esp_min)
+# offset: radians added to the joint angle before mapping (for mechanical alignment)
+# esp: which ESP32 board the servo is on ("tc" or "m")
+# prefix: serial command prefix ("t:" for STS on tc, "c:" for SCS on tc, "" for m)
+
+servos:
+  # -- Head (tc board, STS) ------------------------------------------------
+  - name: head_yaw
+    servo_id: 8
+    esp: tc
+    prefix: "t:"
+    flip: true
+    offset: 0.0
+    esp_min: 1024
+    esp_max: 3072
+    angle_min: -1.5708
+    angle_max:  1.5708
+
+  - name: head_pitch
+    servo_id: 9
+    esp: tc
+    prefix: "t:"
+    flip: true
+    offset: 0.0
+    esp_min: 1024
+    esp_max: 3072
+    angle_min: -1.5708
+    angle_max:  1.5708
+
+  # -- Right arm (IDs 1-7, ID 7 on m, rest on tc STS) ---------------------
+  - name: right_shoulder_pitch
+    servo_id: 7
+    esp: m
+    prefix: ""
+    flip: true
+    offset: 0.0
+    esp_min: 1024
+    esp_max: 3072
+    angle_min: -1.5708
+    angle_max:  1.5708
+
+  - name: right_shoulder_yaw
+    servo_id: 6
+    esp: tc
+    prefix: "t:"
+    flip: false
+    offset: 0.0
+    esp_min: 0
+    esp_max: 2048
+    angle_min: -1.5708
+    angle_max:  1.5708
+
+  - name: right_shoulder_roll
+    servo_id: 5
+    esp: tc
+    prefix: "t:"
+    flip: true
+    offset: 0.0
+    esp_min: 1024
+    esp_max: 3072
+    angle_min: -1.5708
+    angle_max:  1.5708
+
+  - name: right_elbow_flex
+    servo_id: 4
+    esp: tc
+    prefix: "t:"
+    flip: true
+    offset: 0.0
+    esp_min: 2048
+    esp_max: 4096
+    angle_min: -3.3016
+    angle_max: -0.1600
+
+  - name: right_wrist_roll
+    servo_id: 3
+    esp: tc
+    prefix: "t:"
+    flip: false
+    offset: 0.0
+    esp_min: 1024
+    esp_max: 3072
+    angle_min: -0.7854
+    angle_max:  3.6652
+
+  - name: right_wrist_yaw
+    servo_id: 2
+    esp: tc
+    prefix: "t:"
+    flip: false
+    offset: 0.0
+    esp_min: 1934
+    esp_max: 2162
+    angle_min: -0.1745
+    angle_max:  0.1745
+
+  - name: right_hand_wrist_pitch
+    servo_id: 1
+    esp: tc
+    prefix: "t:"
+    flip: false
+    offset: 0.0
+    esp_min: 1877
+    esp_max: 2219
+    angle_min: -0.2618
+    angle_max:  0.2618
+
+  - name: right_gripper
+    servo_id: 10
+    esp: tc
+    prefix: "t:"
+    flip: false
+    offset: 0.0
+    esp_min: 2048
+    esp_max: 2500
+    angle_min: 0.0
+    angle_max: 1.0
+
+  # -- Left arm (IDs 11-18, ID 18 on m, rest on tc STS) -------------------
+  - name: left_shoulder_pitch
+    servo_id: 18
+    esp: m
+    prefix: ""
+    flip: true
+    offset: 0.0
+    esp_min: 1024
+    esp_max: 3072
+    angle_min: -1.5708
+    angle_max:  1.5708
+
+  - name: left_shoulder_yaw
+    servo_id: 16
+    esp: tc
+    prefix: "t:"
+    flip: true
+    offset: 0.0
+    esp_min: 0
+    esp_max: 2048
+    angle_min: -1.5708
+    angle_max:  1.5708
+
+  - name: left_shoulder_roll
+    servo_id: 15
+    esp: tc
+    prefix: "t:"
+    flip: true
+    offset: 0.0
+    esp_min: 1024
+    esp_max: 3072
+    angle_min: -1.1720
+    angle_max:  1.1720
+
+  - name: left_elbow_flex
+    servo_id: 14
+    esp: tc
+    prefix: "t:"
+    flip: false
+    offset: 0.0
+    esp_min: 2048
+    esp_max: 0
+    angle_min: -2.9800
+    angle_max: 0.1616
+
+  - name: left_wrist_roll
+    servo_id: 13
+    esp: tc
+    prefix: "t:"
+    flip: true
+    offset: 0.0
+    esp_min: 1024
+    esp_max: 3072
+    angle_min: -0.7854
+    angle_max:  3.6652
+
+  - name: left_wrist_yaw
+    servo_id: 12
+    esp: tc
+    prefix: "t:"
+    flip: false
+    offset: 0.0
+    esp_min: 1934
+    esp_max: 2162
+    angle_min: -0.1745
+    angle_max:  0.1745
+
+  - name: left_hand_wrist_pitch
+    servo_id: 11
+    esp: tc
+    prefix: "t:"
+    flip: false
+    offset: 0.0
+    esp_min: 1877
+    esp_max: 2219
+    angle_min: -0.2618
+    angle_max:  0.2618
+
+  - name: left_gripper
+    servo_id: 17
+    esp: tc
+    prefix: "t:"
+    flip: false
+    offset: 0.0
+    esp_min: 2048
+    esp_max: 2500
+    angle_min: 0.0
+    angle_max: 1.0

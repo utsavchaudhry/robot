@@ -1,0 +1,13 @@
+# Goal: Target pose for end effector
+geometry_msgs/Pose target_pose
+string arm_name  # "left" or "right"
+---
+# Result: Computed joint positions
+float64[] joint_positions
+bool success
+string message
+---
+# Feedback: Current error
+float64 position_error
+float64 orientation_error
+int32 iteration

@@ -1,0 +1,29 @@
+build
+log
+install
+__pycache__
+
+# --- added by migrate_robot.sh ----------------------------------------
+# Build / install / log artefacts (ros2 + node + python)
+build/
+install/
+log/
+dist/
+node_modules/
+__pycache__/
+*.pyc
+
+# Cloudflare wrangler local cache (contains account credentials)
+.wrangler/
+**/.wrangler/
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Editor / OS noise
+.DS_Store
+.vscode/
+.idea/

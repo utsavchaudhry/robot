@@ -1,0 +1,107 @@
+# =============================================================================
+# Teleop Configuration
+# All tunable parameters for the teleoperation pipeline in one place.
+# Used by: teleop_controller_node, humanoid_kinematics_node, teleop_data_logger
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Teleop Controller — workspace bounds & control gains
+# -----------------------------------------------------------------------------
+teleop_controller_node:
+  ros__parameters:
+    # Workspace bounds in base_link frame (metres)
+    min_x: 0.1        # closest to body (forward)
+    max_x: 0.5        # full forward reach
+    min_y: -0.4        # right side
+    max_y: 0.4         # left side
+    min_z: -0.1        # below waist — arms CAN reach down
+    max_z: 0.45        # near shoulder — NOT above head
+
+    # Control gains (all axes are now delta-based)
+    delta_scale: 0.5          # joystick → workspace delta amplifier
+    head_scale: 1.0           # head joystick sensitivity
+
+    # Safety — velocity limits
+    max_linear_velocity: 0.3      # m/s — end-effector target speed
+    max_angular_velocity: 1.5     # rad/s — head yaw/pitch speed
+
+    # Smooth return to home (triggered by WebRTC disconnect OR default-pose button)
+    return_home_alpha: 0.03       # exponential smoothing per 50 Hz tick (~2 s to 95%)
+
+# -----------------------------------------------------------------------------
+# IK Solver (humanoid_kinematics_node)
+# -----------------------------------------------------------------------------
+humanoid_kinematics_node:
+  ros__parameters:
+    left_end_effector: left_end_effector
+    right_end_effector: right_end_effector
+    update_rate: 50.0             # Hz — IK solve rate
+    realtime_iterations: 1        # 1 iteration — targets move in small deltas, IK stays close
+    max_joint_velocity: 1.5       # rad/s — per-joint velocity clamp
+
+    # IK cost weights
+    position_cost: 1.0            # EE position tracking
+    orientation_cost: 0.0         # EE orientation (0 = free rotation, only track position)
+    regularization_cost: 0.001    # Pulls toward default pose (keeps arm natural)
+    learning_rate: 0.1            # QP step size per iteration
+
+    # Joint angle smoothing filter (applied after IK + velocity clamp, before publishing)
+    filter_type: one_euro         # 'none', 'ema', or 'one_euro'
+    # EMA params (used when filter_type: ema)
+    ema_alpha: 0.3                # 0-1, lower = smoother (more lag)
+    # One Euro Filter params (used when filter_type: one_euro)
+    one_euro_min_cutoff: 1.5      # Hz — smoothing when still (lower = kills more oscillation)
+    one_euro_beta: 0.01           # speed coefficient (higher = less lag during fast motion)
+    one_euro_d_cutoff: 1.0        # derivative smoothing cutoff (Hz)
+
+    debug_mode: false
+
+# -----------------------------------------------------------------------------
+# Data Logger
+# -----------------------------------------------------------------------------
+teleop_data_logger:
+  ros__parameters:
+    log_dir: ~/teleop_logs        # persistent log root; each session gets its own subdirectory
+    flush_interval: 1.0           # seconds between file flushes
+
+# -----------------------------------------------------------------------------
+# Session Recorder — video recording of teleop sessions
+# -----------------------------------------------------------------------------
+session_recorder:
+  ros__parameters:
+    # Output
+    output_dir: ~/teleop_recordings   # each recording: session_YYYY-MM-DD_HHMMSS.mp4
+    output_fps: 30
+    output_width: 1280
+    output_height: 720
+    filename_prefix: session
+
+    # Picture-in-Picture (operator webcam overlay)
+    pip_enabled: true
+    pip_position: bottom-right        # top-left | top-right | bottom-left | bottom-right
+    pip_scale: 0.25                   # fraction of output width
+    pip_margin: 20                    # px from edge
+    pip_opacity: 1.0                  # 0.0 – 1.0 (blends with background)
+    pip_border_width: 2               # px, 0 = no border
+    pip_border_color: [255, 255, 255] # BGR
+    pip_corner_radius: 0              # px, 0 = square corners
+
+    # Video encoding (cv2.VideoWriter)
+    video_fourcc: mp4v                # fourcc codec code
+
+    # Audio (mixed to WAV, muxed to MP4 on stop)
+    audio_enabled: true
+    audio_sample_rate: 48000
+    audio_channels: 1
+    robot_audio_volume: 1.0           # gain multiplier for robot mic
+    operator_audio_volume: 1.0        # gain multiplier for operator mic
+
+    # Behaviour
+    auto_record: true                 # auto start/stop recording per operator session
+
+    # Cloudflare R2 sync (credentials via env: R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)
+    r2_enabled: true
+    r2_account_id: '2b0e3a77f1f0d9e29a9be70e5235376b'
+    r2_bucket: teleop-reordings
+    r2_prefix: sessions               # key prefix → sessions/YYYY-MM-DD/filename.mp4
+    delete_after_upload: true          # delete local file after successful upload
