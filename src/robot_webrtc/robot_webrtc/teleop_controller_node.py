@@ -283,8 +283,26 @@ class TeleopControllerNode(Node):
     def _handle_ik_control(self, msg: TeleopCommand):
         for arm_cmd, arm_name in [(msg.left_arm, 'left'), (msg.right_arm, 'right')]:
             if arm_cmd.command_type == 'end_effector_pose':
-                self.target_poses[arm_name] = arm_cmd.end_effector_pose
-                self._publish_target(arm_name)
+                pose = arm_cmd.end_effector_pose
+                # The WebXR client sets command_type='end_effector_pose' as a
+                # sentinel but puts the actual hand target in
+                # msg.left_controller_pose / msg.right_controller_pose at the
+                # top level — humanoid_kinematics_node.teleop_callback handles
+                # those directly. So arm_cmd.end_effector_pose here is the ROS
+                # default (zeros + identity quaternion). Publishing it to
+                # /ik_target makes the IK timer race the VR path with a zero
+                # target, which causes the joint flicker we keep chasing.
+                # Skip when the pose is unset; only act on real end-effector
+                # commands (Unity client, action server, etc.).
+                pose_is_unset = (
+                    pose.position.x == 0.0 and pose.position.y == 0.0
+                    and pose.position.z == 0.0
+                    and pose.orientation.x == 0.0 and pose.orientation.y == 0.0
+                    and pose.orientation.z == 0.0 and pose.orientation.w == 1.0
+                )
+                if not pose_is_unset:
+                    self.target_poses[arm_name] = pose
+                    self._publish_target(arm_name)
             if arm_cmd.gripper_position >= 0:
                 self._send_gripper(arm_name, arm_cmd.gripper_position)
 
