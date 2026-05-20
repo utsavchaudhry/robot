@@ -163,6 +163,21 @@ class ArmKinematicsNode(Node):
         self.declare_parameter('one_euro_beta', 0.01)           # One Euro: higher = less lag when fast
         self.declare_parameter('one_euro_d_cutoff', 1.0)        # One Euro: derivative smoothing
 
+        # VR teleop safety limits (apply to /vr_teleop atomic path).
+        # Defaults match the values teleop_controller_node uses for the legacy
+        # delta-control path so behaviour is consistent across both inputs.
+        self.declare_parameter('vr_workspace_min_x', 0.1)
+        self.declare_parameter('vr_workspace_max_x', 0.5)
+        self.declare_parameter('vr_workspace_min_y', -0.4)
+        self.declare_parameter('vr_workspace_max_y', 0.4)
+        self.declare_parameter('vr_workspace_min_z', -0.1)
+        self.declare_parameter('vr_workspace_max_z', 0.45)
+        self.declare_parameter('vr_head_yaw_limit', 1.5)      # rad — neck stop
+        self.declare_parameter('vr_head_pitch_limit', 0.8)    # rad — neck stop
+        self.declare_parameter('vr_max_drive_linear', 0.3)    # m/s at thumbstick=1
+        self.declare_parameter('vr_max_drive_angular', 1.5)   # rad/s at thumbstick=1
+        self.declare_parameter('vr_command_timeout', 0.5)     # s — wheels stop if no VR pkt
+
         # Get parameters
         self.update_rate = self.get_parameter('update_rate').value
         self.debug_mode = self.get_parameter('debug_mode').value
@@ -319,6 +334,39 @@ class ArmKinematicsNode(Node):
             QoSProfile(depth=1),   # drop stale frames rather than queue
             callback_group=self._vr_cb_group,
         )
+
+        # VR safety state — read once at boot; treat the YAML as authoritative.
+        self._vr_ws_min = np.array([
+            self.get_parameter('vr_workspace_min_x').value,
+            self.get_parameter('vr_workspace_min_y').value,
+            self.get_parameter('vr_workspace_min_z').value,
+        ], dtype=float)
+        self._vr_ws_max = np.array([
+            self.get_parameter('vr_workspace_max_x').value,
+            self.get_parameter('vr_workspace_max_y').value,
+            self.get_parameter('vr_workspace_max_z').value,
+        ], dtype=float)
+        self._vr_head_yaw_lim   = float(self.get_parameter('vr_head_yaw_limit').value)
+        self._vr_head_pitch_lim = float(self.get_parameter('vr_head_pitch_limit').value)
+        self._vr_max_drive_lin  = float(self.get_parameter('vr_max_drive_linear').value)
+        self._vr_max_drive_ang  = float(self.get_parameter('vr_max_drive_angular').value)
+        self._vr_cmd_timeout    = float(self.get_parameter('vr_command_timeout').value)
+
+        # 2-DOF One Euro filter for HMD yaw/pitch — kills the controller jitter
+        # the operator wouldn't notice in their headset but the motors would.
+        # Same hyperparams as the arm filter; head only has 2 dims.
+        self._vr_head_filter = OneEuroFilter(
+            n_joints=2,
+            rate=self.update_rate,
+            min_cutoff=self.get_parameter('one_euro_min_cutoff').value,
+            beta=self.get_parameter('one_euro_beta').value,
+            d_cutoff=self.get_parameter('one_euro_d_cutoff').value,
+        )
+        # Wheel watchdog — if VR packets stop, send zero Twist. Checked at
+        # 20Hz, which is >> the 0.5s default timeout.
+        self._vr_last_msg_time = None
+        self._vr_wheels_zeroed_since_timeout = True   # avoids spam-zeroing /cmd_vel forever
+        self._vr_watchdog_timer = self.create_timer(0.05, self._vr_watchdog_tick)
 
         # Joint state subscribers (for updating IK seed from real hardware)
         self.left_joint_state_sub = self.create_subscription(
@@ -570,9 +618,17 @@ class ArmKinematicsNode(Node):
         T_world_head = unity_pose_to_ros_se3(head_dict)
         T_head_world = T_world_head.inverse()
 
-        # --- 2. Head (HMD yaw/pitch) — pure passthrough, no IK ---------------
+        # Update watchdog timestamp — wheels stop in _vr_watchdog_tick if this
+        # falls more than vr_command_timeout seconds behind wall time.
+        self._vr_last_msg_time = self.get_clock().now().nanoseconds / 1e9
+        self._vr_wheels_zeroed_since_timeout = False
+
+        # --- 2. Head (HMD yaw/pitch) — clamp + One Euro filter --------------
         head_yaw, head_pitch = self.extract_head_angles(T_world_head)
-        self.publish_head_command(head_yaw, head_pitch)
+        head_yaw   = float(np.clip(head_yaw,   -self._vr_head_yaw_lim,   self._vr_head_yaw_lim))
+        head_pitch = float(np.clip(head_pitch, -self._vr_head_pitch_lim, self._vr_head_pitch_lim))
+        head_smoothed = self._vr_head_filter.filter(np.array([head_yaw, head_pitch]))
+        self.publish_head_command(float(head_smoothed[0]), float(head_smoothed[1]))
 
         # --- 3. Dual-arm IK — POSITION ONLY, single compute_ik call ---------
         if self.humanoid_ik is not None:
@@ -586,11 +642,20 @@ class ArmKinematicsNode(Node):
             # of the Unity→ROS axis remap). Negate only Y. X (forward) is
             # already correct; flipping it sent targets behind the robot's
             # back. Z (up) was always right.
-            def _flip_y(T: pin.SE3) -> pin.SE3:
+            #
+            # Workspace clamp: prevents the IK from chasing positions the arm
+            # physically can't reach — at the edges the QP would saturate at
+            # joint limits and produce oscillating/jumpy solutions.
+            def _flip_y_and_clamp(T: pin.SE3) -> pin.SE3:
                 t = T.translation
-                return pin.SE3(T.rotation, np.array([t[0], -t[1], t[2]]))
-            T_head_left  = _flip_y(T_head_left)
-            T_head_right = _flip_y(T_head_right)
+                clamped = np.clip(
+                    np.array([t[0], -t[1], t[2]]),
+                    self._vr_ws_min,
+                    self._vr_ws_max,
+                )
+                return pin.SE3(T.rotation, clamped)
+            T_head_left  = _flip_y_and_clamp(T_head_left)
+            T_head_right = _flip_y_and_clamp(T_head_right)
             joint_solutions = self.humanoid_ik.compute_ik(
                 {'left': T_head_left, 'right': T_head_right},
                 iterations=10,
@@ -621,11 +686,32 @@ class ArmKinematicsNode(Node):
             gmsg.data = right_grip
             self.right_gripper_pub.publish(gmsg)
 
-        # --- 5. Drive ($cmd_vel$) — zero is a valid command (stop) ----------
+        # --- 5. Drive (/cmd_vel) — scale [-1, 1] stick by configured caps,
+        # then clamp belt-and-suspenders. Zero is a valid command (stop).
         twist = Twist()
-        twist.linear.x  = drive_linear
-        twist.angular.z = drive_angular
+        twist.linear.x  = float(np.clip(
+            drive_linear  * self._vr_max_drive_lin,
+            -self._vr_max_drive_lin, self._vr_max_drive_lin))
+        twist.angular.z = float(np.clip(
+            drive_angular * self._vr_max_drive_ang,
+            -self._vr_max_drive_ang, self._vr_max_drive_ang))
         self.cmd_vel_pub.publish(twist)
+
+    def _vr_watchdog_tick(self):
+        """Stop wheels if VR packets stop arriving.
+
+        Fires at 20Hz. If the last vr_teleop message is older than the
+        configured timeout, publish a zero Twist exactly once and then go
+        quiet so we don't spam /cmd_vel. The flag resets the moment a new
+        VR packet lands."""
+        if self._vr_last_msg_time is None or self._vr_wheels_zeroed_since_timeout:
+            return
+        now = self.get_clock().now().nanoseconds / 1e9
+        if (now - self._vr_last_msg_time) > self._vr_cmd_timeout:
+            self.cmd_vel_pub.publish(Twist())
+            self._vr_wheels_zeroed_since_timeout = True
+            self.get_logger().warn(
+                f'VR watchdog: no vr_teleop for >{self._vr_cmd_timeout:.1f}s — wheels stopped')
 
     def teleop_callback(self, msg: TeleopCommand):
         """

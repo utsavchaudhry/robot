@@ -54,6 +54,23 @@ humanoid_kinematics_node:
     one_euro_beta: 0.01           # speed coefficient (higher = less lag during fast motion)
     one_euro_d_cutoff: 1.0        # derivative smoothing cutoff (Hz)
 
+    # ---- VR teleop safety (governs the /vr_teleop atomic path only) -------
+    # These mirror the teleop_controller_node knobs but apply to the WebXR
+    # path that publishes head/joint_commands + cmd_vel + grippers from one
+    # callback. Keep them in sync with teleop_controller_node above unless
+    # you intentionally want VR and flat-screen to behave differently.
+    vr_workspace_min_x: 0.1       # IK target X (forward) clamp
+    vr_workspace_max_x: 0.5
+    vr_workspace_min_y: -0.4      # IK target Y (lateral) clamp (after Y-flip)
+    vr_workspace_max_y: 0.4
+    vr_workspace_min_z: -0.1      # IK target Z (vertical) clamp
+    vr_workspace_max_z: 0.45
+    vr_head_yaw_limit: 1.5        # rad — neck hardware stop
+    vr_head_pitch_limit: 0.8      # rad — neck hardware stop
+    vr_max_drive_linear: 0.3      # m/s at right-stick fully forward
+    vr_max_drive_angular: 1.5     # rad/s at right-stick fully sideways
+    vr_command_timeout: 0.5       # s — wheels zero'd if /vr_teleop stops
+
     debug_mode: false
 
 # -----------------------------------------------------------------------------
