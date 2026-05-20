@@ -581,16 +581,16 @@ class ArmKinematicsNode(Node):
             T_head_left  = T_head_world * T_world_left
             T_head_right = T_head_world * T_world_right
 
-            # Axis fix: the WebXR-derived target is correct on Z (up) but
-            # mirrored on X (forward) and Y (lateral) relative to the robot's
-            # base_link convention — i.e. operator reaching forward put the
-            # target *behind* the robot, and reaching right put it on the
-            # robot's left. Negate X and Y to align. (180° rotation about Z.)
-            def _flip_xy(T: pin.SE3) -> pin.SE3:
+            # Axis fix: WebXR target was lateral-mirrored relative to the
+            # robot's base_link (operator-right mapped onto robot-left because
+            # of the Unity→ROS axis remap). Negate only Y. X (forward) is
+            # already correct; flipping it sent targets behind the robot's
+            # back. Z (up) was always right.
+            def _flip_y(T: pin.SE3) -> pin.SE3:
                 t = T.translation
-                return pin.SE3(T.rotation, np.array([-t[0], -t[1], t[2]]))
-            T_head_left  = _flip_xy(T_head_left)
-            T_head_right = _flip_xy(T_head_right)
+                return pin.SE3(T.rotation, np.array([t[0], -t[1], t[2]]))
+            T_head_left  = _flip_y(T_head_left)
+            T_head_right = _flip_y(T_head_right)
             joint_solutions = self.humanoid_ik.compute_ik(
                 {'left': T_head_left, 'right': T_head_right},
                 iterations=10,
