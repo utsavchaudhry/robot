@@ -76,7 +76,9 @@ humanoid_kinematics_node:
     vr_workspace_max_x: 0.5
     vr_workspace_min_y: -0.4      # IK target Y (lateral) clamp (after Y-flip)
     vr_workspace_max_y: 0.4
-    vr_workspace_min_z: -0.1      # IK target Z (vertical) clamp
+    vr_workspace_min_z: -0.15     # IK target Z (vertical) clamp — slightly
+                                   # lowered (-0.1 → -0.15) so the bottom
+                                   # half of the user's reach doesn't peg.
     vr_workspace_max_z: 0.45
     vr_head_yaw_limit: 1.5        # rad — neck hardware stop
     vr_head_pitch_limit: 0.8      # rad — neck hardware stop
@@ -87,9 +89,16 @@ humanoid_kinematics_node:
     # Lift Z so the operator's head-height controller maps onto a robot-shoulder-
     # height target (rather than base_link, which is roughly hip level). Tune
     # to your robot's actual head-to-base distance.
-    vr_target_z_offset: 0.0       # m, added to IK target Z before workspace clamp.
-                                   # Start at 0 — walk up to 0.1-0.2 if you want
-                                   # raised-arm gestures to go above robot chest.
+    vr_target_z_offset: 0.3       # m, added to IK target Z before workspace clamp.
+                                   # Operator's spatial origin is their head;
+                                   # robot base_link is at lower torso. With
+                                   # offset=0, "hand at chest" (y_rel=-0.5
+                                   # in three.js) maps to robot z=-0.5 →
+                                   # clamps to workspace min -0.1 every
+                                   # single frame the user is at rest. 0.3
+                                   # shifts the operator's natural chest
+                                   # height onto the middle of the robot's
+                                   # vertical reach. Recording verified.
     # X (forward) offset to compensate for headset-projects-forward anatomy.
     # Hands at user's chest are behind the headset position in three.js world
     # (L_rel_z is positive → ROS X negative → clamps to min_x every frame).
