@@ -28,6 +28,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose
+from std_msgs.msg import Float32MultiArray
 from robot_interfaces.msg import TeleopCommand
 
 
@@ -59,6 +60,11 @@ class FlickerRecorder(Node):
                                  lambda m: self._pose("right_arm/ik_target", m), 50)
         self.create_subscription(TeleopCommand, "/teleop_commands",
                                  self._teleop, 50)
+        # The new atomic VR path uses /vr_teleop (25-float array) instead of
+        # /teleop_commands. Capture both so we can see what the robot actually
+        # received vs. what it decided to do.
+        self.create_subscription(Float32MultiArray, "/vr_teleop",
+                                 self._vr_teleop, 50)
 
     def _t(self) -> float:
         return time.monotonic() - self._t0
@@ -80,6 +86,23 @@ class FlickerRecorder(Node):
             "t": self._t(),
             "topic": topic,
             **_pose_dict(m),
+        })
+
+    def _vr_teleop(self, m: Float32MultiArray):
+        # Decode the 25-float layout into named fields so the JSONL is
+        # easier to skim than a flat array.
+        v = list(m.data)
+        if len(v) != 25:
+            return
+        self._emit({
+            "t": self._t(),
+            "topic": "vr_teleop",
+            "head":       {"pos": v[0:3],  "rot": v[3:7]},
+            "left_ctrl":  {"pos": v[7:10], "rot": v[10:14]},
+            "right_ctrl": {"pos": v[14:17], "rot": v[17:21]},
+            "left_grip":  v[21],
+            "right_grip": v[22],
+            "drive":      [v[23], v[24]],
         })
 
     def _teleop(self, m: TeleopCommand):

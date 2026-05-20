@@ -42,11 +42,12 @@ humanoid_kinematics_node:
     # IK cost weights
     position_cost: 1.0            # EE position tracking
     orientation_cost: 0.0         # EE orientation (0 = free rotation, only track position)
-    regularization_cost: 0.005    # Pulls toward default pose (keeps arm natural).
-                                   # Bumped 5x from 0.001 — with orientation_cost=0,
-                                   # the arm has 4 redundant DOFs and the IK was
-                                   # flipping between equivalent solutions on tiny
-                                   # target changes, producing audible motor jitter.
+    regularization_cost: 0.002    # Pulls toward default pose (keeps arm natural).
+                                   # Walked back from 0.005 — too strong a pull
+                                   # was overpowering forward-reach targets and
+                                   # the arm preferred staying near neutral
+                                   # (manifested as "elbow never bends, forward
+                                   # motion turns into vertical").
     learning_rate: 0.1            # QP step size per iteration
 
     # Joint angle smoothing filter (applied after IK + velocity clamp, before publishing)
@@ -54,7 +55,10 @@ humanoid_kinematics_node:
     # EMA params (used when filter_type: ema)
     ema_alpha: 0.3                # 0-1, lower = smoother (more lag)
     # One Euro Filter params (used when filter_type: one_euro)
-    one_euro_min_cutoff: 0.5      # Hz — smoothing when still (lower = kills more oscillation)
+    one_euro_min_cutoff: 1.0      # Hz — smoothing when still (lower = kills more oscillation).
+                                   # Walked back from 0.5 — too low means filter
+                                   # takes ~2s to wake up after VR connect, causing
+                                   # the "initial jitter that settles down" pattern.
     one_euro_beta: 0.01           # speed coefficient (higher = less lag during fast motion)
     one_euro_d_cutoff: 1.0        # derivative smoothing cutoff (Hz)
 
@@ -78,11 +82,21 @@ humanoid_kinematics_node:
     # Lift Z so the operator's head-height controller maps onto a robot-shoulder-
     # height target (rather than base_link, which is roughly hip level). Tune
     # to your robot's actual head-to-base distance.
-    vr_target_z_offset: 0.3       # m, added to IK target Z before workspace clamp
+    vr_target_z_offset: 0.0       # m, added to IK target Z before workspace clamp.
+                                   # Was 0.3 (lifting targets toward robot's
+                                   # shoulder height); diagnosis showed it was
+                                   # pushing targets into the IK-saturation
+                                   # region, which made the elbow stop bending
+                                   # and forward motion map to vertical. Start
+                                   # at 0 and walk back up to 0.1–0.2 if you
+                                   # want raised-arm gestures to actually go
+                                   # above the robot's chest.
     # IK iterations per VR frame. Lower = smoother motors / less noise, more
-    # tracking lag on fast hand motion. 3 is a good balance; 1 was too laggy,
-    # 10 produced motor oscillation noise.
-    vr_ik_iterations: 3
+    # tracking lag on fast hand motion. 3 was too few — IK couldn't overcome
+    # the regularization pull-to-neutral during the first frames of a new
+    # gesture, so the arm stayed near default. 10 is enough for the QP to
+    # actually reach the target inside ~3 frames.
+    vr_ik_iterations: 10
 
     debug_mode: false
 
