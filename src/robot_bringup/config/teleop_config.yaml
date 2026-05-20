@@ -42,12 +42,17 @@ humanoid_kinematics_node:
     # IK cost weights
     position_cost: 1.0            # EE position tracking
     orientation_cost: 0.0         # EE orientation (0 = free rotation, only track position)
-    regularization_cost: 0.002    # Pulls toward default pose (keeps arm natural).
-                                   # Walked back from 0.005 — too strong a pull
-                                   # was overpowering forward-reach targets and
-                                   # the arm preferred staying near neutral
-                                   # (manifested as "elbow never bends, forward
-                                   # motion turns into vertical").
+    regularization_cost: 0.0002   # Pulls toward default pose (keeps arm natural).
+                                   # Lowered 10x from 0.002 — the URDF default
+                                   # for left_elbow_flex is -2.98 (fully bent /
+                                   # "arms folded against torso"), and with
+                                   # orientation_cost=0 the arm has 4 redundant
+                                   # DOFs that the posture task was resolving
+                                   # by keeping elbow stuck near full-bend.
+                                   # Effect: arm just rotated at shoulder with
+                                   # folded elbow instead of actually reaching.
+                                   # Lower regularization → IK extends elbow
+                                   # to match controller position.
     learning_rate: 0.1            # QP step size per iteration
 
     # Joint angle smoothing filter (applied after IK + velocity clamp, before publishing)
@@ -93,11 +98,11 @@ humanoid_kinematics_node:
     # rest posture is different.
     vr_target_x_offset: 0.3       # m, added to IK target X before workspace clamp
     # IK iterations per VR frame. Lower = smoother motors / less noise, more
-    # tracking lag on fast hand motion. 3 was too few — IK couldn't overcome
-    # the regularization pull-to-neutral during the first frames of a new
-    # gesture, so the arm stayed near default. 10 is enough for the QP to
-    # actually reach the target inside ~3 frames.
-    vr_ik_iterations: 10
+    # tracking lag on fast hand motion. With the now-very-low regularization
+    # the QP has more freedom but also farther to converge each frame, so
+    # 20 helps it actually escape the "elbow folded near default" basin
+    # before the velocity-clamp pulls the published joints back.
+    vr_ik_iterations: 20
 
     debug_mode: false
 
