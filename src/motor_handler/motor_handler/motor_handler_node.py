@@ -29,13 +29,24 @@ class MotorHandler(Node):
         self.get_logger().info("Setting up motor handler...")
 
         # --- Config file parameter -----------------------------------------
+        # Per-robot servo calibration lives in
+        #   share/motor_handler/config/servo_config_<variant>.yaml
+        # The variant is picked from the ROBOT_VARIANT env var (a=shop,
+        # b=test/dev). Default 'b' so a fresh checkout / unconfigured robot
+        # uses the dev calibration rather than silently driving with the
+        # shop robot's (different) calibration. Each robot should set
+        # ROBOT_VARIANT in /etc/environment or the systemd unit's
+        # Environment= line — see the robot README. Explicit launch param
+        # `-p servo_config:=/full/path/to.yaml` still wins over the env var.
+        variant = os.environ.get('ROBOT_VARIANT', 'b').strip().lower()
         default_config = os.path.join(
             get_package_share_directory('motor_handler'),
-            'config', 'servo_config.yaml')
+            'config', f'servo_config_{variant}.yaml')
         self.declare_parameter('servo_config', default_config)
         config_path = (self.get_parameter('servo_config')
                        .get_parameter_value().string_value)
-        self.get_logger().info(f"Loading config: {config_path}")
+        self.get_logger().info(
+            f"Loading config: {config_path} (ROBOT_VARIANT={variant!r})")
         servo_config = load_servo_config(config_path)
 
         # --- Enabled joints parameter --------------------------------------

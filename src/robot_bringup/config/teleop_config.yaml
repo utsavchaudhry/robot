@@ -42,17 +42,7 @@ humanoid_kinematics_node:
     # IK cost weights
     position_cost: 1.0            # EE position tracking
     orientation_cost: 0.0         # EE orientation (0 = free rotation, only track position)
-    regularization_cost: 0.0002   # Pulls toward default pose (keeps arm natural).
-                                   # Lowered 10x from 0.002 — the URDF default
-                                   # for left_elbow_flex is -2.98 (fully bent /
-                                   # "arms folded against torso"), and with
-                                   # orientation_cost=0 the arm has 4 redundant
-                                   # DOFs that the posture task was resolving
-                                   # by keeping elbow stuck near full-bend.
-                                   # Effect: arm just rotated at shoulder with
-                                   # folded elbow instead of actually reaching.
-                                   # Lower regularization → IK extends elbow
-                                   # to match controller position.
+    regularization_cost: 0.001    # Pulls toward default pose (keeps arm natural).
     learning_rate: 0.1            # QP step size per iteration
 
     # Joint angle smoothing filter (applied after IK + velocity clamp, before publishing)
@@ -76,9 +66,7 @@ humanoid_kinematics_node:
     vr_workspace_max_x: 0.5
     vr_workspace_min_y: -0.4      # IK target Y (lateral) clamp (after Y-flip)
     vr_workspace_max_y: 0.4
-    vr_workspace_min_z: -0.15     # IK target Z (vertical) clamp — slightly
-                                   # lowered (-0.1 → -0.15) so the bottom
-                                   # half of the user's reach doesn't peg.
+    vr_workspace_min_z: -0.1      # IK target Z (vertical) clamp
     vr_workspace_max_z: 0.45
     vr_head_yaw_limit: 1.5        # rad — neck hardware stop
     vr_head_pitch_limit: 0.8      # rad — neck hardware stop
@@ -106,12 +94,9 @@ humanoid_kinematics_node:
     # actually maps to robot forward motion. Tune via JSONL recording if your
     # rest posture is different.
     vr_target_x_offset: 0.3       # m, added to IK target X before workspace clamp
-    # IK iterations per VR frame. Lower = smoother motors / less noise, more
-    # tracking lag on fast hand motion. With the now-very-low regularization
-    # the QP has more freedom but also farther to converge each frame, so
-    # 20 helps it actually escape the "elbow folded near default" basin
-    # before the velocity-clamp pulls the published joints back.
-    vr_ik_iterations: 20
+    # IK iterations per VR frame. 10 is a good balance — 1 was too laggy
+    # (arm crept toward target), 50+ produced motor oscillation noise.
+    vr_ik_iterations: 10
 
     debug_mode: false
 
