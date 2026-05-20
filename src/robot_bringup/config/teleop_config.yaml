@@ -90,10 +90,11 @@ humanoid_kinematics_node:
     # X (forward) offset to compensate for headset-projects-forward anatomy.
     # Hands at user's chest are behind the headset position in three.js world
     # (L_rel_z is positive → ROS X negative → clamps to min_x every frame).
-    # 0.3 lifts so chest-rest lands at robot X≈0.1-0.2 and arm extension
-    # actually maps to robot forward motion. Tune via JSONL recording if your
-    # rest posture is different.
-    vr_target_x_offset: 0.3       # m, added to IK target X before workspace clamp
+    # Recording showed 0.3 made "rest" still clamp at min_x 57% of the time
+    # because the user's natural reach centerline sits about 35cm behind the
+    # headset position. 0.5 puts chest-rest near mid-workspace and lets the
+    # forward extension actually hit max_x.
+    vr_target_x_offset: 0.5       # m, added to IK target X before workspace clamp
     # IK iterations per VR frame. 10 is a good balance — 1 was too laggy
     # (arm crept toward target), 50+ produced motor oscillation noise.
     vr_ik_iterations: 10
