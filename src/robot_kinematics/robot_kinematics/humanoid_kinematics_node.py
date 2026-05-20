@@ -184,6 +184,14 @@ class ArmKinematicsNode(Node):
         # for raised-arm gestures. Default lifts the target ~0.3m so the
         # operator's head-rel reference maps onto robot's shoulder-rel.
         self.declare_parameter('vr_target_z_offset', 0.3)     # m, added to IK target Z
+        # X (forward) offset: the headset projects ~10-15cm in front of the
+        # operator's head center, so hands held "naturally in front of body"
+        # (chest level) actually sit BEHIND the headset position in three.js
+        # world frame — making L_rel_z always positive (= ROS X always
+        # negative after axis remap, which clamps to min_x=0.1 every frame
+        # and forward motion gets killed). Shift X forward so the operator's
+        # rest position lands on a meaningful robot-forward target.
+        self.declare_parameter('vr_target_x_offset', 0.3)     # m, added to IK target X
         # How many Pink iterations to run per VR frame. Lowering reduces
         # motor jitter at the cost of tracking lag for fast hand motion.
         self.declare_parameter('vr_ik_iterations', 3)
@@ -362,6 +370,7 @@ class ArmKinematicsNode(Node):
         self._vr_max_drive_ang  = float(self.get_parameter('vr_max_drive_angular').value)
         self._vr_cmd_timeout    = float(self.get_parameter('vr_command_timeout').value)
         self._vr_z_offset       = float(self.get_parameter('vr_target_z_offset').value)
+        self._vr_x_offset       = float(self.get_parameter('vr_target_x_offset').value)
         self._vr_ik_iters       = int(self.get_parameter('vr_ik_iterations').value)
 
         # 2-DOF One Euro filter for HMD yaw/pitch — kills the controller jitter
@@ -649,18 +658,27 @@ class ArmKinematicsNode(Node):
             T_head_left  = T_head_world * T_world_left
             T_head_right = T_head_world * T_world_right
 
-            # Axis fix + Z-offset + workspace clamp, all in one go:
+            # Axis fix + X/Z offset + workspace clamp, all in one go:
             #   * Flip Y: operator-right was landing on robot-left due to the
             #     Unity→ROS axis remap.
-            #   * Add vr_target_z_offset to Z: the operator's reference origin
-            #     is their head, but on the robot side base_link is at lower
-            #     torso. Lift everything so user head-height ≈ robot shoulder.
-            #   * Clamp to workspace box so unreachable targets don't make the
-            #     QP oscillate at joint limits.
+            #   * Add vr_target_x_offset to X: hands at user's chest are
+            #     behind the headset projection, so L_rel_z is positive in
+            #     three.js → ROS X negative without the offset → workspace
+            #     clamp pegs at min_x and forward motion never reaches the
+            #     IK. Lift so rest position maps to ~mid-workspace X.
+            #   * Add vr_target_z_offset to Z: operator's origin is head,
+            #     robot's base_link is at torso. Lift so user head-height
+            #     ≈ robot shoulder.
+            #   * Clamp to workspace box so unreachable targets don't make
+            #     the QP oscillate at joint limits.
             def _adjust(T: pin.SE3) -> pin.SE3:
                 t = T.translation
                 clamped = np.clip(
-                    np.array([t[0], -t[1], t[2] + self._vr_z_offset]),
+                    np.array([
+                        t[0] + self._vr_x_offset,
+                        -t[1],
+                        t[2] + self._vr_z_offset,
+                    ]),
                     self._vr_ws_min,
                     self._vr_ws_max,
                 )

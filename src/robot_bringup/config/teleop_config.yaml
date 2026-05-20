@@ -83,14 +83,15 @@ humanoid_kinematics_node:
     # height target (rather than base_link, which is roughly hip level). Tune
     # to your robot's actual head-to-base distance.
     vr_target_z_offset: 0.0       # m, added to IK target Z before workspace clamp.
-                                   # Was 0.3 (lifting targets toward robot's
-                                   # shoulder height); diagnosis showed it was
-                                   # pushing targets into the IK-saturation
-                                   # region, which made the elbow stop bending
-                                   # and forward motion map to vertical. Start
-                                   # at 0 and walk back up to 0.1–0.2 if you
-                                   # want raised-arm gestures to actually go
-                                   # above the robot's chest.
+                                   # Start at 0 — walk up to 0.1-0.2 if you want
+                                   # raised-arm gestures to go above robot chest.
+    # X (forward) offset to compensate for headset-projects-forward anatomy.
+    # Hands at user's chest are behind the headset position in three.js world
+    # (L_rel_z is positive → ROS X negative → clamps to min_x every frame).
+    # 0.3 lifts so chest-rest lands at robot X≈0.1-0.2 and arm extension
+    # actually maps to robot forward motion. Tune via JSONL recording if your
+    # rest posture is different.
+    vr_target_x_offset: 0.3       # m, added to IK target X before workspace clamp
     # IK iterations per VR frame. Lower = smoother motors / less noise, more
     # tracking lag on fast hand motion. 3 was too few — IK couldn't overcome
     # the regularization pull-to-neutral during the first frames of a new
