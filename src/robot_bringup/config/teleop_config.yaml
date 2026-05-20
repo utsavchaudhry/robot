@@ -42,7 +42,11 @@ humanoid_kinematics_node:
     # IK cost weights
     position_cost: 1.0            # EE position tracking
     orientation_cost: 0.0         # EE orientation (0 = free rotation, only track position)
-    regularization_cost: 0.001    # Pulls toward default pose (keeps arm natural)
+    regularization_cost: 0.005    # Pulls toward default pose (keeps arm natural).
+                                   # Bumped 5x from 0.001 — with orientation_cost=0,
+                                   # the arm has 4 redundant DOFs and the IK was
+                                   # flipping between equivalent solutions on tiny
+                                   # target changes, producing audible motor jitter.
     learning_rate: 0.1            # QP step size per iteration
 
     # Joint angle smoothing filter (applied after IK + velocity clamp, before publishing)
@@ -50,7 +54,7 @@ humanoid_kinematics_node:
     # EMA params (used when filter_type: ema)
     ema_alpha: 0.3                # 0-1, lower = smoother (more lag)
     # One Euro Filter params (used when filter_type: one_euro)
-    one_euro_min_cutoff: 1.5      # Hz — smoothing when still (lower = kills more oscillation)
+    one_euro_min_cutoff: 0.5      # Hz — smoothing when still (lower = kills more oscillation)
     one_euro_beta: 0.01           # speed coefficient (higher = less lag during fast motion)
     one_euro_d_cutoff: 1.0        # derivative smoothing cutoff (Hz)
 
@@ -70,6 +74,15 @@ humanoid_kinematics_node:
     vr_max_drive_linear: 0.3      # m/s at right-stick fully forward
     vr_max_drive_angular: 1.5     # rad/s at right-stick fully sideways
     vr_command_timeout: 0.5       # s — wheels zero'd if /vr_teleop stops
+    # IK target sits in base_link, but operator's spatial origin is their head.
+    # Lift Z so the operator's head-height controller maps onto a robot-shoulder-
+    # height target (rather than base_link, which is roughly hip level). Tune
+    # to your robot's actual head-to-base distance.
+    vr_target_z_offset: 0.3       # m, added to IK target Z before workspace clamp
+    # IK iterations per VR frame. Lower = smoother motors / less noise, more
+    # tracking lag on fast hand motion. 3 is a good balance; 1 was too laggy,
+    # 10 produced motor oscillation noise.
+    vr_ik_iterations: 3
 
     debug_mode: false
 

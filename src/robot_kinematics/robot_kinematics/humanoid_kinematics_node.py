@@ -177,6 +177,16 @@ class ArmKinematicsNode(Node):
         self.declare_parameter('vr_max_drive_linear', 0.3)    # m/s at thumbstick=1
         self.declare_parameter('vr_max_drive_angular', 1.5)   # rad/s at thumbstick=1
         self.declare_parameter('vr_command_timeout', 0.5)     # s — wheels stop if no VR pkt
+        # IK target reference offset: operator's head is the user-side origin,
+        # but on the robot side base_link is roughly at hip / lower-torso.
+        # Without this offset, "user reaching at head height" became "robot
+        # target at base_link height" → robot arm pinned at chest level even
+        # for raised-arm gestures. Default lifts the target ~0.3m so the
+        # operator's head-rel reference maps onto robot's shoulder-rel.
+        self.declare_parameter('vr_target_z_offset', 0.3)     # m, added to IK target Z
+        # How many Pink iterations to run per VR frame. Lowering reduces
+        # motor jitter at the cost of tracking lag for fast hand motion.
+        self.declare_parameter('vr_ik_iterations', 3)
 
         # Get parameters
         self.update_rate = self.get_parameter('update_rate').value
@@ -351,6 +361,8 @@ class ArmKinematicsNode(Node):
         self._vr_max_drive_lin  = float(self.get_parameter('vr_max_drive_linear').value)
         self._vr_max_drive_ang  = float(self.get_parameter('vr_max_drive_angular').value)
         self._vr_cmd_timeout    = float(self.get_parameter('vr_command_timeout').value)
+        self._vr_z_offset       = float(self.get_parameter('vr_target_z_offset').value)
+        self._vr_ik_iters       = int(self.get_parameter('vr_ik_iterations').value)
 
         # 2-DOF One Euro filter for HMD yaw/pitch — kills the controller jitter
         # the operator wouldn't notice in their headset but the motors would.
@@ -637,28 +649,27 @@ class ArmKinematicsNode(Node):
             T_head_left  = T_head_world * T_world_left
             T_head_right = T_head_world * T_world_right
 
-            # Axis fix: WebXR target was lateral-mirrored relative to the
-            # robot's base_link (operator-right mapped onto robot-left because
-            # of the Unity→ROS axis remap). Negate only Y. X (forward) is
-            # already correct; flipping it sent targets behind the robot's
-            # back. Z (up) was always right.
-            #
-            # Workspace clamp: prevents the IK from chasing positions the arm
-            # physically can't reach — at the edges the QP would saturate at
-            # joint limits and produce oscillating/jumpy solutions.
-            def _flip_y_and_clamp(T: pin.SE3) -> pin.SE3:
+            # Axis fix + Z-offset + workspace clamp, all in one go:
+            #   * Flip Y: operator-right was landing on robot-left due to the
+            #     Unity→ROS axis remap.
+            #   * Add vr_target_z_offset to Z: the operator's reference origin
+            #     is their head, but on the robot side base_link is at lower
+            #     torso. Lift everything so user head-height ≈ robot shoulder.
+            #   * Clamp to workspace box so unreachable targets don't make the
+            #     QP oscillate at joint limits.
+            def _adjust(T: pin.SE3) -> pin.SE3:
                 t = T.translation
                 clamped = np.clip(
-                    np.array([t[0], -t[1], t[2]]),
+                    np.array([t[0], -t[1], t[2] + self._vr_z_offset]),
                     self._vr_ws_min,
                     self._vr_ws_max,
                 )
                 return pin.SE3(T.rotation, clamped)
-            T_head_left  = _flip_y_and_clamp(T_head_left)
-            T_head_right = _flip_y_and_clamp(T_head_right)
+            T_head_left  = _adjust(T_head_left)
+            T_head_right = _adjust(T_head_right)
             joint_solutions = self.humanoid_ik.compute_ik(
                 {'left': T_head_left, 'right': T_head_right},
-                iterations=10,
+                iterations=self._vr_ik_iters,
             )
             dt = 1.0 / self.update_rate
             max_delta = self.max_joint_velocity * dt
