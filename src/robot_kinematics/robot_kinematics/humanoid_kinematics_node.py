@@ -572,42 +572,54 @@ class ArmKinematicsNode(Node):
             # teleop_callback at 50Hz with two arms = 100 iters / 50Hz = 100%
             # CPU on a single thread and the message queue backed up, which is
             # why head appeared to "snap" instead of stream smoothly.
-            # IK iterations per VR frame. realtime_iterations=1 from
-            # teleop_config.yaml is meant for the ik_timer path that runs
-            # continuously at 50Hz — there, one step per tick adds up. From
-            # teleop_callback the IK only runs when a VR frame arrives, so 1
-            # iter/frame means the end-effector creeps toward target while
-            # the user's hand has already moved on. 10 iter is a compromise:
-            # fast enough that the arm tracks within ~3 frames, slow enough
-            # (~10-15ms per call on LattePanda) not to back up the head
-            # publish that we moved to the top of this callback.
-            VR_IK_ITERATIONS = 10
-
+            # Solve BOTH arms in a single compute_ik call. The earlier
+            # version split into two sequential calls (left, then right)
+            # which under MultiThreadedExecutor + ReentrantCallbackGroup
+            # raced two concurrent invocations of this callback through the
+            # shared self._configuration — one was mid-left-solve while
+            # another was mid-right-solve, scrambling each other's state.
+            # Symptoms: right arm publish count was ~2× left's, right arm
+            # joints jumped 0.5 rad in 30ms (11× the configured velocity
+            # limit), left arm "barely moved". Pink is designed to solve
+            # multiple frame tasks together; the _ik_timer_callback already
+            # uses that pattern.
             if self.humanoid_ik is not None:
                 unity_left_dict = {
                     'position': {'x': msg.left_controller_pose.position.x, 'y': msg.left_controller_pose.position.y, 'z': msg.left_controller_pose.position.z},
                     'rotation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0},
                 }
-                T_world_left = _position_only(unity_left_dict)
-                T_head_left = T_head_world * T_world_left
-                target_poses = {'left': T_head_left}
-                joint_solutions = self.humanoid_ik.compute_ik(
-                    target_poses, iterations=VR_IK_ITERATIONS)
-                left_joints = joint_solutions['left']
-                self.publish_joint_command(left_joints, 'left')
-
-            if self.humanoid_ik is not None:
                 unity_right_dict = {
                     'position': {'x': msg.right_controller_pose.position.x, 'y': msg.right_controller_pose.position.y, 'z': msg.right_controller_pose.position.z},
                     'rotation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0},
                 }
+                T_world_left = _position_only(unity_left_dict)
                 T_world_right = _position_only(unity_right_dict)
+                T_head_left = T_head_world * T_world_left
                 T_head_right = T_head_world * T_world_right
-                target_poses = {'right': T_head_right}
-                joint_solutions = self.humanoid_ik.compute_ik(
-                    target_poses, iterations=VR_IK_ITERATIONS)
-                right_joints = joint_solutions['right']
-                self.publish_joint_command(right_joints, 'right')
+                target_poses = {'left': T_head_left, 'right': T_head_right}
+
+                # iter count: 10 was a compromise per-arm; with both arms in
+                # one solve it's still ~10-15ms total on LattePanda.
+                joint_solutions = self.humanoid_ik.compute_ik(target_poses, iterations=10)
+
+                # Apply the same post-processing that _ik_timer_callback does
+                # — velocity clamping (max_joint_velocity) + One Euro filter
+                # — so VR-path commands don't jump 0.5 rad between frames.
+                dt = 1.0 / self.update_rate
+                max_delta = self.max_joint_velocity * dt
+                for arm_name in ('left', 'right'):
+                    joint_positions = joint_solutions[arm_name]
+                    if np.any(np.isnan(joint_positions)) or np.any(np.isinf(joint_positions)):
+                        continue
+                    if arm_name in self._prev_joints:
+                        delta = joint_positions - self._prev_joints[arm_name]
+                        delta = np.clip(delta, -max_delta, max_delta)
+                        joint_positions = self._prev_joints[arm_name] + delta
+                    self._prev_joints[arm_name] = joint_positions.copy()
+                    filt = self._joint_filters.get(arm_name)
+                    if filt is not None:
+                        joint_positions = filt.filter(joint_positions)
+                    self.publish_joint_command(joint_positions, arm_name)
 
         # Direct arm commands (end_effector_pose / joint_positions)
         elif msg.left_arm.command_type == 'end_effector_pose':
