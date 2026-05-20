@@ -27,7 +27,7 @@ gi.require_version('GstSdp', '1.0')
 from gi.repository import Gst, GstWebRTC, GstSdp, GLib
 
 from robot_interfaces.msg import TeleopCommand, ArmCommand
-from std_msgs.msg import String, UInt8MultiArray
+from std_msgs.msg import String, UInt8MultiArray, Float32MultiArray
 from sensor_msgs.msg import Image, CompressedImage
 from geometry_msgs.msg import Pose
 
@@ -200,6 +200,13 @@ class WebRTCNode(Node):
 
         # Publisher for operator status (for centralized server integration)
         self.operator_status_pub = self.create_publisher(String, 'robot/operator_status', 10)
+
+        # /vr_teleop carries the flat 25-float atomic payload from the WebXR
+        # client (see useVRTeleopSender.ts). humanoid_kinematics_node has a
+        # MutuallyExclusive callback that consumes this and does head+arms+
+        # grippers+cmd_vel publishing in a single solve, eliminating the
+        # multi-subscriber multi-IK-call race the old TeleopCommand path had.
+        self.vr_teleop_pub = self.create_publisher(Float32MultiArray, 'vr_teleop', 10)
 
         if self.video_source == 'ros':
             self.camera_sub = self.create_subscription(
@@ -917,6 +924,20 @@ class WebRTCNode(Node):
             
             if data.get('type') == 'teleop_command':
                 self.process_teleop_command(data)
+            elif data.get('type') == 'vr_teleop':
+                # Flat 25-float atomic VR payload. Forward as-is on /vr_teleop;
+                # humanoid_kinematics_node owns the single callback that does
+                # head + dual-arm IK + grippers + cmd_vel publishes from it.
+                v = data.get('v')
+                if isinstance(v, list) and len(v) == 25:
+                    ma = Float32MultiArray()
+                    ma.data = [float(x) for x in v]
+                    self.vr_teleop_pub.publish(ma)
+                else:
+                    self.get_logger().warn(
+                        f'vr_teleop message ignored: expected 25-element list, '
+                        f'got {type(v).__name__} (len={len(v) if isinstance(v, list) else "?"})'
+                    )
             elif data.get('type') == 'camera_switch':
                 self.switch_camera(data.get('camera', 'front'))
             elif data.get('type') == 'heartbeat':

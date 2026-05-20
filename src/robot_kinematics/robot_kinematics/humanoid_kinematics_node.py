@@ -15,16 +15,16 @@ Provides two control interfaces:
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy
 
 import math
 import numpy as np
 import pinocchio as pin
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Twist
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Header, Empty
+from std_msgs.msg import Header, Empty, Float32MultiArray, Float64
 
 
 # =====================================================================
@@ -300,6 +300,26 @@ class ArmKinematicsNode(Node):
         self.left_joint_pub = self.create_publisher(JointState, 'left_arm/joint_commands', 10)
         self.right_joint_pub = self.create_publisher(JointState, 'right_arm/joint_commands', 10)
 
+        # Drive + grippers — published from the atomic VR callback so head,
+        # arms, grippers, and wheels are all driven from the same callback
+        # invocation. No more multi-subscriber races.
+        self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
+        self.left_gripper_pub = self.create_publisher(Float64, 'left_arm/gripper_command', 10)
+        self.right_gripper_pub = self.create_publisher(Float64, 'right_arm/gripper_command', 10)
+
+        # =====================================================================
+        # Atomic VR teleop subscription — 25-float payload from webrtc_node.
+        # MutuallyExclusiveCallbackGroup keeps callbacks serialized so the
+        # shared `self._configuration` can't be clobbered by parallel solves.
+        # =====================================================================
+        self._vr_cb_group = MutuallyExclusiveCallbackGroup()
+        self.vr_teleop_sub = self.create_subscription(
+            Float32MultiArray, 'vr_teleop',
+            self.vr_teleop_callback,
+            QoSProfile(depth=1),   # drop stale frames rather than queue
+            callback_group=self._vr_cb_group,
+        )
+
         # Joint state subscribers (for updating IK seed from real hardware)
         self.left_joint_state_sub = self.create_subscription(
             JointState, 'left_arm/joint_states', self.left_joint_state_callback, 10,
@@ -518,11 +538,94 @@ class ArmKinematicsNode(Node):
         rpy = pin.rpy.matrixToRpy(T_head.rotation)
         return float(rpy[2]), float(-rpy[1])
 
+    # ------------------------------------------------------------------
+    # Atomic VR teleop — one Float32MultiArray, one callback, one solve,
+    # everything published from here. This is the only path the WebXR
+    # client takes; the older TeleopCommand-based teleop_callback below is
+    # retained only for legacy/Unity clients and is a no-op for ik_control.
+    # ------------------------------------------------------------------
+    def vr_teleop_callback(self, msg: Float32MultiArray):
+        v = msg.data
+        if len(v) != 25:
+            return  # webrtc_node already logs the length mismatch
+
+        # --- 1. Decode (no side effects yet) ---------------------------------
+        head_dict = {
+            'position':    {'x': float(v[0]),  'y': float(v[1]),  'z': float(v[2])},
+            'rotation':    {'x': float(v[3]),  'y': float(v[4]),  'z': float(v[5]),  'w': float(v[6])},
+        }
+        left_dict = {
+            'position':    {'x': float(v[7]),  'y': float(v[8]),  'z': float(v[9])},
+            'rotation':    {'x': float(v[10]), 'y': float(v[11]), 'z': float(v[12]), 'w': float(v[13])},
+        }
+        right_dict = {
+            'position':    {'x': float(v[14]), 'y': float(v[15]), 'z': float(v[16])},
+            'rotation':    {'x': float(v[17]), 'y': float(v[18]), 'z': float(v[19]), 'w': float(v[20])},
+        }
+        left_grip     = float(v[21])
+        right_grip    = float(v[22])
+        drive_linear  = float(v[23])
+        drive_angular = float(v[24])
+
+        T_world_head = unity_pose_to_ros_se3(head_dict)
+        T_head_world = T_world_head.inverse()
+
+        # --- 2. Head (HMD yaw/pitch) — pure passthrough, no IK ---------------
+        head_yaw, head_pitch = self.extract_head_angles(T_world_head)
+        self.publish_head_command(head_yaw, head_pitch)
+
+        # --- 3. Dual-arm IK — POSITION ONLY, single compute_ik call ---------
+        if self.humanoid_ik is not None:
+            T_world_left  = pin.SE3(np.eye(3), unity_pose_to_ros_se3(left_dict).translation)
+            T_world_right = pin.SE3(np.eye(3), unity_pose_to_ros_se3(right_dict).translation)
+            T_head_left  = T_head_world * T_world_left
+            T_head_right = T_head_world * T_world_right
+            joint_solutions = self.humanoid_ik.compute_ik(
+                {'left': T_head_left, 'right': T_head_right},
+                iterations=10,
+            )
+            dt = 1.0 / self.update_rate
+            max_delta = self.max_joint_velocity * dt
+            for arm_name in ('left', 'right'):
+                jp = joint_solutions.get(arm_name)
+                if jp is None or np.any(np.isnan(jp)) or np.any(np.isinf(jp)):
+                    continue
+                if arm_name in self._prev_joints:
+                    delta = jp - self._prev_joints[arm_name]
+                    delta = np.clip(delta, -max_delta, max_delta)
+                    jp = self._prev_joints[arm_name] + delta
+                self._prev_joints[arm_name] = jp.copy()
+                filt = self._joint_filters.get(arm_name)
+                if filt is not None:
+                    jp = filt.filter(jp)
+                self.publish_joint_command(jp, arm_name)
+
+        # --- 4. Grippers (-1.0 sentinel = no command) ------------------------
+        if left_grip >= 0.0:
+            gmsg = Float64()
+            gmsg.data = left_grip
+            self.left_gripper_pub.publish(gmsg)
+        if right_grip >= 0.0:
+            gmsg = Float64()
+            gmsg.data = right_grip
+            self.right_gripper_pub.publish(gmsg)
+
+        # --- 5. Drive ($cmd_vel$) — zero is a valid command (stop) ----------
+        twist = Twist()
+        twist.linear.x  = drive_linear
+        twist.angular.z = drive_angular
+        self.cmd_vel_pub.publish(twist)
+
     def teleop_callback(self, msg: TeleopCommand):
         """
         Handle teleop commands from Unity operator via WebRTC (VR tracking).
         Only processes ik_control mode; thumbstick_control is handled via
         the teleop_controller_node → topic-based targets path.
+
+        NOTE: The WebXR client now sends via /vr_teleop (vr_teleop_callback
+        above), not /teleop_commands, so this method's ik_control branch is
+        effectively dead for the modern client. Kept for legacy Unity
+        clients that still emit nested TeleopCommand JSON.
         """
         if msg.emergency_stop:
             self.get_logger().warn('EMERGENCY STOP received!')
