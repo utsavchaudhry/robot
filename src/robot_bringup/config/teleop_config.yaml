@@ -88,13 +88,15 @@ humanoid_kinematics_node:
                                    # height onto the middle of the robot's
                                    # vertical reach. Recording verified.
     # X (forward) offset to compensate for headset-projects-forward anatomy.
-    # Hands at user's chest are behind the headset position in three.js world
-    # (L_rel_z is positive → ROS X negative → clamps to min_x every frame).
-    # Recording showed 0.3 made "rest" still clamp at min_x 57% of the time
-    # because the user's natural reach centerline sits about 35cm behind the
-    # headset position. 0.5 puts chest-rest near mid-workspace and lets the
-    # forward extension actually hit max_x.
-    vr_target_x_offset: 0.5       # m, added to IK target X before workspace clamp
+    # Hands at user's chest are behind the headset position in three.js world,
+    # so without offset the user's whole forward reach maps below min_x.
+    # Re-tuned 2026-05-20 from 0.5 to 0.15 after the elbow calibration fix:
+    # forward.jsonl showed user's head-relative reach was -0.075..+0.358 m,
+    # so +0.15 maps that to target [+0.075..+0.508], keeping mid-reach near
+    # mid-workspace and only clipping at boundaries. The earlier 0.5 was
+    # tuned against a recording distorted by the broken elbow config and
+    # was saturating 92% of frames at max_x.
+    vr_target_x_offset: 0.15      # m, added to IK target X before workspace clamp
     # IK iterations per VR frame. 10 is a good balance — 1 was too laggy
     # (arm crept toward target), 50+ produced motor oscillation noise.
     vr_ik_iterations: 10
