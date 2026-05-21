@@ -164,11 +164,22 @@ class MotorHandler(Node):
             n for n in self._motor_by_name
             if n.startswith('right_finger_') or n == 'right_gripper']
 
+        # Dedupe: clients (VR / flatscreen) re-send gripper state on every
+        # input frame at 60-90 Hz. Without dedup, that fans out to 16 finger
+        # servos × 60 Hz = ~1k serial writes/sec to the ESP — saturates the
+        # USB controller and starves camera capture, causing video freeze
+        # while head/wheel still work. Track the last value per side and
+        # skip the per-motor write loop when the requested value hasn't
+        # meaningfully changed.
+        self._last_gripper_val = {'left': None, 'right': None}
+        self._GRIPPER_EPS = 0.01
+
         if self._left_gripper_motors:
             self.create_subscription(
                 Float64, 'left_arm/gripper_command',
                 partial(self._gripper_cmd_cb,
-                        motor_names=self._left_gripper_motors), 10)
+                        motor_names=self._left_gripper_motors,
+                        side='left'), 10)
             self.get_logger().info(
                 f"Left gripper motors: {self._left_gripper_motors}")
 
@@ -176,7 +187,8 @@ class MotorHandler(Node):
             self.create_subscription(
                 Float64, 'right_arm/gripper_command',
                 partial(self._gripper_cmd_cb,
-                        motor_names=self._right_gripper_motors), 10)
+                        motor_names=self._right_gripper_motors,
+                        side='right'), 10)
             self.get_logger().info(
                 f"Right gripper motors: {self._right_gripper_motors}")
 
@@ -253,9 +265,18 @@ class MotorHandler(Node):
             if motor:
                 motor.set_angle(pos)
 
-    def _gripper_cmd_cb(self, msg: Float64, motor_names: list):
-        """Map normalized 0.0 (open) – 1.0 (close) to each motor's angle range."""
+    def _gripper_cmd_cb(self, msg: Float64, motor_names: list, side: str):
+        """Map normalized 0.0 (open) – 1.0 (close) to each motor's angle range.
+
+        Skips the per-motor write when the requested value matches the last
+        commanded value (within _GRIPPER_EPS). See the dedup comment in
+        __init__ — this prevents the gripper-flood video-freeze symptom.
+        """
         val = max(0.0, min(1.0, msg.data))
+        last = self._last_gripper_val.get(side)
+        if last is not None and abs(val - last) < self._GRIPPER_EPS:
+            return
+        self._last_gripper_val[side] = val
         for name in motor_names:
             motor = self._motor_by_name.get(name)
             if motor:
