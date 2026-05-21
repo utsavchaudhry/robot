@@ -520,18 +520,23 @@ class WebRTCNode(Node):
                 )
                 self.get_logger().info('H.264: using NVIDIA hardware encoder')
             else:
-                # key-int-max=30 at 30fps → keyframe every 1s, not every 3s.
-                # On lossy Quest/Pico wifi, a single dropped P-frame would
-                # freeze the picture until the next IDR; with key-int-max=90
-                # that wait was 3 s, and if the IDR itself lost a packet it
-                # stretched to 5 s+. Intra-refresh smears each "keyframe"
-                # across the GOP so there is no big packet burst to drop in
-                # the first place. bframes=0 is implied by tune=zerolatency
-                # but we set it explicitly for clarity.
+                # key-int-max=30 at 30fps → IDR keyframe every 1 s.
+                # Removed `intra-refresh=true`: with intra-refresh the encoder
+                # NEVER emits IDR frames — it sprinkles intra slices across
+                # the GOP instead. That's fine for some software decoders
+                # which can initialize from SPS/PPS alone, but Android Chrome's
+                # hardware H264 decoder REQUIRES an actual IDR frame to lock
+                # on, particularly under VPN/cross-region paths where SPS/PPS
+                # delivery may be late or jittery. Symptoms when broken:
+                # `framesRecv > 0, framesDec = 0` indefinitely. With plain
+                # IDR every second the worst case after a dropped-keyframe
+                # event is a 1 s freeze, then recovery on the next IDR.
+                # bframes=0 is implied by tune=zerolatency but we set it
+                # explicitly for clarity.
                 video_enc = (
                     f'x264enc bitrate={self.video_bitrate // 1000} '
                     f'speed-preset=ultrafast tune=zerolatency '
-                    f'key-int-max=30 intra-refresh=true bframes=0 '
+                    f'key-int-max=30 bframes=0 '
                     f'name=video_encoder'
                 )
                 self.get_logger().info('H.264: using x264enc software encoder')
