@@ -72,10 +72,10 @@ servos:
     servo_id: 4
     esp: tc
     prefix: "t:"
-    flip: true
+    flip: false
     offset: 0.0
-    esp_min: 2048
-    esp_max: 4096
+    esp_min: 0
+    esp_max: 2048
     angle_min: -3.3016
     angle_max: -0.1600
 
@@ -153,7 +153,7 @@ servos:
     flip: false
     offset: 0.0
     esp_min: 2048
-    esp_max: 0
+    esp_max: 4096
     angle_min: -2.9800
     angle_max: 0.1616
 
