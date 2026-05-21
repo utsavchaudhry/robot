@@ -8,7 +8,7 @@ head:
 
 left_arm:
   shoulder_pitch: 0.0
-  shoulder_yaw: -1.5635088
+  shoulder_yaw: 0.0
   shoulder_roll: 0.0
   elbow_flex: -2.98
   wrist_roll: 0.8987049384369203
@@ -17,7 +17,7 @@ left_arm:
 
 right_arm:
   shoulder_pitch: 0.0
-  shoulder_yaw: 1.5711316
+  shoulder_yaw: 0.0
   shoulder_roll: 0.0
   elbow_flex: -0.16
   wrist_roll: 0.8987049384369203
