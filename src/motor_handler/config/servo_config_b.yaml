@@ -183,7 +183,7 @@ servos:
     servo_id: 11
     esp: tc
     prefix: "t:"
-    flip: false
+    flip: true
     offset: 0.0
     esp_min: 1877
     esp_max: 2219
@@ -194,7 +194,7 @@ servos:
     servo_id: 10
     esp: tc
     prefix: "t:"
-    flip: false
+    flip: true
     offset: 0.0
     esp_min: 2048
     esp_max: 2500
